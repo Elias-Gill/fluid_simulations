@@ -39,9 +39,9 @@ code design.
 - **Programming Language**:
   Zig for its balance of low-level control and high-level abstractions
 - **Simulation Algorithms**: 
-- Smoothed Particle Hydrodynamics (SPH)
-- Lattice Boltzmann Methods (LBM)
-- Eulerian Grid-based methods
+    - Smoothed Particle Hydrodynamics (SPH)
+    - Lattice Boltzmann Methods (LBM)
+    - Eulerian Grid-based methods
 
 ## Project Structure
 ```text
