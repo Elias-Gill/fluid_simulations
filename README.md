@@ -44,6 +44,7 @@ code design.
     - Eulerian Grid-based methods
 
 ## Project Structure
+
 ```text
 fluid-simulation/
 ├── src/
