@@ -3,7 +3,7 @@ const rl = @import("raylib");
 const Fluid = @import("fluid.zig").Fluid;
 
 pub fn main() !void {
-    const cell_size = 4; // in pixels
+    const cell_size = 6; // in pixels
     const fps = 120;
     const w_width = 800; // in pixels
     const w_height = 800; // in pixels
