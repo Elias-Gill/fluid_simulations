@@ -1,17 +1,12 @@
 const std = @import("std");
-
 const rl = @import("raylib");
-const Color = rl.Color;
-
-const lib = @import("lib.zig");
-const Grid = lib.Grid;
-const Fluid = lib.Fluid;
+const Fluid = @import("fluid.zig").Fluid;
 
 pub fn main() !void {
-    const cell_size = 20; // in pixels
-    const fps = 60;
-    const w_width = 200; // in pixels
-    const w_height = 200; // in pixels
+    const cell_size = 4; // in pixels
+    const fps = 120;
+    const w_width = 800; // in pixels
+    const w_height = 800; // in pixels
 
     // Initialize the main window
     rl.initWindow(w_width, w_height, "Fluid simulation");
@@ -21,13 +16,25 @@ pub fn main() !void {
     // fluid grids
     const fluid = Fluid.init(w_width, w_height, cell_size);
 
-    // main loop
-    // while (!rl.windowShouldClose()) {
-    fluid.densities.set(1, 1, 20);
-    fluid.print();
+    // test data
+    fluid.densities.set(101, 100, 1234);
+    fluid.densities.set(105, 100, 1234);
+    fluid.densities.set(107, 100, 1234);
+    fluid.densities.set(109, 100, 1234);
+    fluid.densities.set(111, 100, 1234);
+    fluid.densities.set(121, 100, 1236);
+    fluid.densities.set(133, 100, 1234);
+    fluid.densities.set(143, 100, 1236);
 
-    std.debug.print("\n\n", .{});
-    fluid.diffuse();
-    fluid.print();
-    // }
+    // main loop
+    while (!rl.windowShouldClose()) {
+        rl.clearBackground(rl.Color.black);
+
+        fluid.diffuse();
+
+        rl.beginDrawing();
+        fluid.draw();
+        rl.endDrawing();
+
+    }
 }
