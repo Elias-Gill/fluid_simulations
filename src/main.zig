@@ -1,6 +1,6 @@
 const std = @import("std");
 const rl = @import("raylib");
-const Fluid = @import("fluid.zig").Fluid;
+const Window = @import("window.zig").Window;
 
 pub fn main() !void {
     const cell_size = 7; // in pixels
@@ -14,18 +14,18 @@ pub fn main() !void {
     rl.setTargetFPS(fps);
 
     // fluid grids
-    const fluid = Fluid.init(w_width, w_height, cell_size);
+    const window = Window.init(w_width, w_height, cell_size);
 
     // main loop
     while (!rl.windowShouldClose()) {
         rl.clearBackground(rl.Color.black);
 
-        fluid.add_forces();
-        fluid.diffuse();
-        // fluid.advection();
+        window.apply_user_inputs();
+        window.fluid.diffuse();
+        // window.fluid.advection();
 
         rl.beginDrawing();
-        fluid.draw();
+        window.draw();
         rl.endDrawing();
     }
 }
