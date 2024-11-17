@@ -4,6 +4,8 @@ const std = @import("std");
 const Color = rl.Color;
 const Grid = @import("lib.zig").Grid;
 
+pub const MouseToGridError = error{InvalidPosition};
+
 // Struct that represents the fluid.
 pub const Fluid = struct {
     cell_size: i32,
@@ -20,7 +22,8 @@ pub const Fluid = struct {
 
     // Physics constants
     c_diff: f16 = 0.02, // diffusion coeficient
-    dt: f16 = 12, // delta-time
+    dt: f16 = 10, // delta-time
+    added_density: f64 = 12, // the dentity that is added when the mouse is pressed
 
     pub fn deinit(self: Fluid) void {
         self.densities.deinit();
@@ -39,7 +42,7 @@ pub const Fluid = struct {
 
         // Apply the padding and change the position of the drawing limits.
         var grid_start_x: i32 = 0;
-        var grid_end_x: i32 = rows;
+        var grid_end_x: i32 = w;
 
         if (@mod(x_padding, 2) == 0) {
             grid_start_x += @divFloor(x_padding, 2);
@@ -51,7 +54,7 @@ pub const Fluid = struct {
         }
 
         var grid_start_y: i32 = 0;
-        var grid_end_y: i32 = columns;
+        var grid_end_y: i32 = h;
 
         if (@mod(y_padding, 2) == 0) {
             grid_start_y += @divFloor(y_padding, 2);
@@ -141,6 +144,42 @@ pub const Fluid = struct {
         Color.init(14, 14, 250, 120), // Near full intensity blue
         Color.init(14, 14, 255, 120), // Full intensity blue (brightest)
     };
+
+    // Transpolates the mouse position to a cell of the fluid
+    fn find_cell(self: Fluid) ![2]i32 {
+        const mouse_x: i32 = rl.getMouseX();
+        const mouse_y: i32 = rl.getMouseY();
+
+        // check out of bounds position
+        if (mouse_x < self.start_x or mouse_y < self.start_y) {
+            return MouseToGridError.InvalidPosition;
+        }
+
+        if (mouse_x > self.end_x or mouse_y > self.end_y) {
+            return MouseToGridError.InvalidPosition;
+        }
+
+        const row: i32 = @divFloor(mouse_y - self.start_y, self.cell_size);
+        const column: i32 = @divFloor(mouse_x - self.start_x, self.cell_size);
+
+        return .{ row, column };
+    }
+
+    pub fn add_forces(self: Fluid) void {
+        if (!rl.isMouseButtonDown(rl.MouseButton.mouse_button_left)) {
+            return;
+        }
+
+        const positions = self.find_cell() catch {
+            std.debug.print("\nMouse out of bounds", .{});
+            return;
+        };
+
+        const row = positions[0];
+        const column = positions[1];
+        const new_value: f64 = self.densities.get(row, column) + self.added_density;
+        self.densities.set(row, column, new_value);
+    }
 
     pub fn draw(self: Fluid) void {
         var row: i32 = 0;
