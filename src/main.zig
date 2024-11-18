@@ -20,8 +20,11 @@ pub fn main() !void {
     while (!rl.windowShouldClose()) {
         rl.clearBackground(rl.Color.black);
 
+        // Velocity step
         window.apply_user_inputs();
-        window.fluid.diffuse();
+        
+        // Density step
+        window.fluid.diffuse_densities();
         // window.fluid.swap_densities();
         // window.fluid.advection();
 

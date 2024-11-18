@@ -2,30 +2,29 @@ const std = @import("std");
 const Grid = @import("lib.zig").Grid;
 
 const Velocity = struct {
-    x: f32,
-    y: f32,
+    x: f64,
+    y: f64,
 };
 
 // Struct that represents the fluid.
 pub const Fluid = struct {
-    // the grid that represents the content of the fluid
     densities: Grid(f64),
-    densities_x0: Grid(f64),
-    velocities_x: Grid(Velocity),
-    velocities_y: Grid(Velocity),
+    densities_x0: Grid(f64), // represents a step back in time
+    velocities: Grid(Velocity),
+    velocities_x0: Grid(Velocity),
 
     // Physics constants
     c_diff: f16 = 0.02, // diffusion coeficient
     dt: f16 = 10, // delta-time
-    added_density: f64 = 12, // the dentity that is added when the mouse is pressed
+    viscosity: f16 = 10, // viscosity of the fluid
+    added_density: f64 = 12, // the density that is added when the mouse is pressed
 
     pub fn init(rows: i32, columns: i32) Fluid {
         return Fluid{
             .densities = Grid(f64).init(rows, columns),
             .densities_x0 = Grid(f64).init(rows, columns),
-
-            .velocities_x = Grid(Velocity).init(rows, columns),
-            .velocities_y = Grid(Velocity).init(rows, columns),
+            .velocities = Grid(Velocity).init(rows, columns),
+            .velocities_x0 = Grid(Velocity).init(rows, columns),
         };
     }
 
@@ -33,15 +32,14 @@ pub const Fluid = struct {
         self.densities.deinit();
     }
 
-    pub fn swap_densities(self: *Fluid) void {
-        const tmp = self.densities;
-        self.densities = self.densities_x0;
-        self.densities_x0 = tmp;
-    }
+    // ##################
+    // #  Density Step  #
+    // ##################
 
-    pub fn diffuse(self: Fluid) void {
+    pub fn diffuse_densities(self: Fluid) void {
         const dim: f64 = @floatFromInt(self.densities.rows * self.densities.columns);
         const f_diff: f64 = self.dt * self.c_diff * dim;
+        const divisor: f64 = 1 + 4 * f_diff;
 
         var iterations: i32 = 0;
         while (iterations < 20) : (iterations += 1) {
@@ -53,7 +51,6 @@ pub const Fluid = struct {
                         self.densities.get(i + 1, k) + self.densities.get(i - 1, k);
 
                     const dividend: f64 = self.densities.get(i, k) + (f_diff * neighbors);
-                    const divisor: f64 = 1 + 4 * f_diff;
                     const value: f64 = dividend / divisor;
 
                     self.densities.set(i, k, value);
@@ -62,7 +59,7 @@ pub const Fluid = struct {
         }
     }
 
-    pub fn advection(self: Fluid) void {
+    pub fn advect_densities(self: Fluid) void {
         const N: f64 = @floatFromInt(self.densities.rows * self.densities.columns);
         var dt0: f64 = N;
         dt0 = dt0 * self.dt;
@@ -74,8 +71,8 @@ pub const Fluid = struct {
                 // calculate the positions
                 const aux_i: f64 = @floatFromInt(i);
                 const aux_k: f64 = @floatFromInt(i);
-                var x: f64 = aux_i - dt0 * self.velocities_x.get(i, k);
-                var y: f64 = aux_k - dt0 * self.velocities_y.get(i, k);
+                var x: f64 = aux_i - dt0 * self.velocities.get(i, k).x;
+                var y: f64 = aux_k - dt0 * self.velocities.get(i, k).y;
 
                 // adjust the coordinates for the expected point
                 if (x < 0.5) {
@@ -111,6 +108,57 @@ pub const Fluid = struct {
         }
     }
 
+    pub fn add_density(self: Fluid, row: i32, column: i32) void {
+        const new_value: f64 = self.densities.get(row, column) + self.added_density;
+        self.densities.set(row, column, new_value);
+    }
+
+    // ###################
+    // #  Velocity Step  #
+    // ###################
+
+    pub fn add_velocity(self: Fluid, row: i32, column: i32, velocity: Velocity) void {
+        self.velocities.set(row, column, velocity);
+    }
+
+    pub fn diffuse_velocities(self: Fluid) void {
+        const dim: f64 = @floatFromInt(self.velocities.rows * self.velocities.columns);
+        const f_diff: f64 = self.dt * self.viscosity * dim;
+        const divisor: f64 = 1 + 4 * f_diff;
+
+        var iterations: i32 = 0;
+        while (iterations < 20) : (iterations += 1) {
+            var i: i32 = 0;
+            while (i < self.velocities.rows) : (i += 1) {
+                var k: i32 = 0;
+                while (k < self.velocities.columns) : (k += 1) {
+                    // velocities in the x-coordinates
+                    const x_neighbors = self.velocities.get(i, k + 1).x + self.velocities.get(i, k - 1).x +
+                        self.velocities.get(i + 1, k).x + self.velocities.get(i - 1, k).x;
+
+                    var dividend: f64 = self.velocities.get(i, k).x + (f_diff * x_neighbors);
+                    const x_value: f64 = dividend / divisor;
+
+                    // velocities in the y-coordinates
+                    const y_neighbors = self.velocities.get(i, k + 1).y + self.velocities.get(i, k - 1).y +
+                        self.velocities.get(i + 1, k).y + self.velocities.get(i - 1, k).y;
+
+                    dividend = self.velocities.get(i, k).y + (f_diff * y_neighbors);
+                    const y_value: f64 = dividend / divisor;
+
+                    self.velocities.set(i, k, Velocity{
+                        .x = x_value,
+                        .y = y_value,
+                    });
+                }
+            }
+        }
+    }
+
+    // #######################
+    // #  Utility functions  #
+    // #######################
+
     pub fn print(self: Fluid) void {
         var row: i32 = 0;
         while (row < self.densities.rows) : (row += 1) {
@@ -125,8 +173,15 @@ pub const Fluid = struct {
         }
     }
 
-    pub fn add_density(self: Fluid, row: i32, column: i32) void {
-        const new_value: f64 = self.densities.get(row, column) + self.added_density;
-        self.densities.set(row, column, new_value);
+    pub fn swap_densities(self: *Fluid) void {
+        const tmp = self.densities;
+        self.densities = self.densities_x0;
+        self.densities_x0 = tmp;
+    }
+
+    pub fn swap_velocities(self: *Fluid) void {
+        const tmp = self.velocities;
+        self.velocities = self.velocities_x0;
+        self.velocities_x0 = tmp;
     }
 };

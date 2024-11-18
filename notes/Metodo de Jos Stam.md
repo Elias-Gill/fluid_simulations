@@ -79,8 +79,7 @@ from k=1 to k=20 {  // iteraciones de Gauss-Seidel. Mas iteraciones, mas exacto.
     } 
 
     // Aqui se puede anadir una funcion que agregue bordes y elementos solidos dentro de la
-    // simulacion. Jos Stam no nos da informacion de como implementar dicha funcion, quedando 
-    // a criterio del implementador.
+    simulacion.
     set_bnd ( N, b, x ); 
 } 
 
