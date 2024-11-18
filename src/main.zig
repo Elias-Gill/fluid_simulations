@@ -14,7 +14,7 @@ pub fn main() !void {
     rl.setTargetFPS(fps);
 
     // fluid grids
-    const window = Window.init(w_width, w_height, cell_size);
+    var window = Window.init(w_width, w_height, cell_size);
 
     // main loop
     while (!rl.windowShouldClose()) {
@@ -22,10 +22,16 @@ pub fn main() !void {
 
         window.apply_user_inputs();
         window.fluid.diffuse();
+        // window.fluid.swap_densities();
         // window.fluid.advection();
 
         rl.beginDrawing();
         window.draw();
         rl.endDrawing();
+
+        // simple trick to make the simulation slowly fade and reset itself
+        window.fluid.densities.grid[
+            window.fluid.densities.grid.len - 1
+        ] = 0;
     }
 }

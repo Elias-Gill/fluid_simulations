@@ -6,6 +6,8 @@ pub const Fluid = struct {
     // the grid that represents the content of the fluid
     densities: Grid,
     densities_x0: Grid,
+    velocities_x: Grid,
+    velocities_y: Grid,
 
     // Physics constants
     c_diff: f16 = 0.02, // diffusion coeficient
@@ -16,11 +18,19 @@ pub const Fluid = struct {
         return Fluid{
             .densities = Grid.init(rows, columns),
             .densities_x0 = Grid.init(rows, columns),
+            .velocities_x = Grid.init(rows, columns),
+            .velocities_y = Grid.init(rows, columns),
         };
     }
 
     pub fn deinit(self: Fluid) void {
         self.densities.deinit();
+    }
+
+    pub fn swap_densities(self: *Fluid) void {
+        const tmp = self.densities;
+        self.densities = self.densities_x0;
+        self.densities_x0 = tmp;
     }
 
     pub fn diffuse(self: Fluid) void {
@@ -42,6 +52,55 @@ pub const Fluid = struct {
 
                     self.densities.set(i, k, value);
                 }
+            }
+        }
+    }
+
+    pub fn advection(self: Fluid) void {
+        const N: f64 = @floatFromInt(self.densities.rows * self.densities.columns);
+        var dt0: f64 = N;
+        dt0 = dt0 * self.dt;
+
+        var i: i32 = 0;
+        while (i < self.densities.rows) : (i += 1) {
+            var k: i32 = 0;
+            while (k < self.densities.columns) : (k += 1) {
+                // calculate the positions
+                const aux_i: f64 = @floatFromInt(i);
+                const aux_k: f64 = @floatFromInt(i);
+                var x: f64 = aux_i - dt0 * self.velocities_x.get(i, k);
+                var y: f64 = aux_k - dt0 * self.velocities_y.get(i, k);
+
+                // adjust the coordinates for the expected point
+                if (x < 0.5) {
+                    x = 0.5;
+                } else if (x > 0.5) {
+                    x = N + 0.5;
+                }
+                const lower_x: i32 = @intFromFloat(x);
+                const upper_x: i32 = 1 + lower_x;
+                const aux_lower_x: f64 = @floatFromInt(lower_x);
+
+                if (y < 0.5) {
+                    y = 0.5;
+                } else if (y > 0.5) {
+                    y = N + 0.5;
+                }
+                const lower_y: i32 = @intFromFloat(y);
+                const upper_y: i32 = 1 + lower_y;
+                const aux_lower_y: f64 = @floatFromInt(lower_y);
+
+                // calculate the weights for the bilinear interpolation
+                const weight_x1 = x - aux_lower_x; // Peso para la celda superior en x
+                const weight_x0 = 1 - weight_x1; // Peso para la celda inferior en x
+                const weight_y1 = y - aux_lower_y; // Peso para la celda superior en y
+                const weight_y0 = 1 - weight_y1; // Peso para la celda inferior en y
+
+                // bilinear interpolation
+                const new_value = weight_x0 * (weight_y0 * self.densities_x0.get(lower_x, lower_y) + weight_y1 * self.densities_x0.get(lower_x, upper_y)) +
+                    weight_x1 * (weight_y0 * self.densities_x0.get(upper_x, lower_y) + weight_y1 * self.densities_x0.get(upper_x, upper_y));
+
+                self.densities.set(i, k, new_value);
             }
         }
     }

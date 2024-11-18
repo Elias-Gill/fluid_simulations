@@ -33,6 +33,8 @@ La implementacion del algoritmo se divide en tres pasos escenciales:
 > "Through diffusion each cell exchanges density with its direct neighbors"
 
 Este paso implica calcular la distribucion de las densidades en la malla de densidades.
+La densidad de una celda especifica en el instante en el tiempo es igual al promedio entre las
+densidades de sus vecinos.
 
 Esto se realiza sumando a la celda actual el producto de un factor de densidad por, las
 densidades de las celdas vecinas (aportan densidad) menos 4 veces el valor de la celda actual
@@ -92,3 +94,69 @@ from k=1 to k=20 {  // iteraciones de Gauss-Seidel. Mas iteraciones, mas exacto.
 
 > "The advection step moves the density through a static velocity field"
 
+El calculo de la adveccion implica el calculo del movimiento de las densidades dentro del
+fluido causado por las fuerzas aplicadas.
+
+Supongamos que una celda del fluido sufre una aceleracion, esto resultara en un movimiento de
+las densidades de dicha celda hacia otra posicion en el fluido.
+
+El problema es que el vector que representa el movimiento de esas densidades casi nunca apunta
+desde el centro de una celda al centro de otra celda.
+En cambio, al realizar el moviemiento de las densidades afectaremos a un conjunto de celdas,
+afectando a cada celda de manera distinta.
+
+EL calculo de la adveccion resultaria casi trivial si contaramos con un conjunto de particulas,
+pero esto conlleva su propio desafio, el cual es calcular la densidad que se translada a cada
+celda segun las particulas que caigan en la misma, lo cual requiere tener registro de
+particulas dentro del liquido, ademas de el calculo extra para calcular la densidad de la
+celda.
+
+Para sobreponernos ante dicho problema, Jos Stam propone reutilizar la estrategia para el
+calculo de la difusion de densidades.
+En vez de movernos hacia adelante en el tiempo, calculando el lugar desde donde la nueva
+densidad llegaria si es que esta cayese en el centro de la celda.
+
+Para poder ver de que celda se viene se utiliza la tecnica de interpolacion bilineal.
+La interpolacion bilineal utilza los vecinos del punto.
+
+Asi en pseudo-codigo tendriamos:
+```
+dt0 = dt * ancho * largo;
+
+from i=1 to j=ancho {
+    from j=1 to j=largo {
+        // Calcular las posiciones ajustadas por velocidad
+        x = i - dt0 * velocidades[i, j].horizontal;
+        y = j - dt0 * velocidades[i, j].vertical;
+
+        // Ajustar valores de "x" e "y" a los límites del dominio
+        if (x < 0.5) 
+            x = 0.5;
+        if (x > N + 0.5) 
+            x = N + 0.5;
+        lower_x = (int)x;
+        upper_x = lower_x + 1;
+
+        if (y < 0.5) 
+            y = 0.5;
+        if (y > N + 0.5) 
+            y = N + 0.5;
+        lower_y = (int)y;
+        upper_y = lower_y + 1;
+
+        // Calcular los pesos de interpolación
+        weight_x1 = x - lower_x;   // Peso para la celda superior en x
+        weight_x0 = 1 - weight_x1; // Peso para la celda inferior en x
+        weight_y1 = y - lower_y;   // Peso para la celda superior en y
+        weight_y0 = 1 - weight_y1; // Peso para la celda inferior en y
+
+        // Interpolación bilineal
+        densidades[(i, j)] =
+            weight_x0 * (weight_y0 * densidades_x0[lower_x, lower_y] + weight_y1 * densidades_x0[lower_x, upper_y]) +
+            weight_x1 * (weight_y0 * densidades_x0[upper_x, lower_y] + weight_y1 * densidades_x0[upper_x, upper_y]);
+    }
+}
+
+// Aplicar condiciones de frontera
+set_bnd(N, b, d);
+```

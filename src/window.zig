@@ -1,5 +1,6 @@
 const rl = @import("raylib");
 const std = @import("std");
+
 const Color = rl.Color;
 const Fluid = @import("fluid.zig").Fluid;
 
@@ -13,6 +14,56 @@ pub const Window = struct {
     end_x: i32,
     start_y: i32,
     end_y: i32,
+
+    pub fn init(h: i32, w: i32, cell_size: i32) Window {
+        // Grid initialization.
+        // Calculate some padding to not "overflow" the UI when drawing.
+        var x_padding: i32 = @mod(w, cell_size);
+        var y_padding: i32 = @mod(h, cell_size);
+
+        // Calculate the actual amount of rows and columns for the grid, using the padding
+        // and dividing by the size of a single particle.
+        const rows: i32 = @divFloor(h - y_padding, cell_size);
+        const columns: i32 = @divFloor(w - x_padding, cell_size);
+
+        // Apply the padding and change the position of the drawing limits.
+        var fluid_start_x: i32 = 0;
+        var fluid_end_x: i32 = w;
+
+        if (@mod(x_padding, 2) == 0) {
+            fluid_start_x += @divFloor(x_padding, 2);
+            fluid_end_x -= @divFloor(x_padding, 2);
+        } else { // uneven padding
+            x_padding -= 1;
+            fluid_start_x += 1 + @divFloor(x_padding, 2);
+            fluid_end_x -= @divFloor(x_padding, 2);
+        }
+
+        var fluid_start_y: i32 = 0;
+        var fluid_end_y: i32 = h;
+
+        if (@mod(y_padding, 2) == 0) {
+            fluid_start_y += @divFloor(y_padding, 2);
+            fluid_end_y -= @divFloor(y_padding, 2);
+        } else {
+            y_padding -= 1;
+            fluid_start_y += 1 + @divFloor(y_padding, 2);
+            fluid_end_y -= @divFloor(y_padding, 2);
+        }
+
+        return Window{
+            .start_x = fluid_start_x,
+            .end_x = fluid_end_x,
+            .start_y = fluid_start_y,
+            .end_y = fluid_end_y,
+            .fluid = Fluid.init(rows, columns),
+            .cell_size = cell_size,
+        };
+    }
+
+    pub fn deinit(self: Window) void {
+        self.fluid.deinit();
+    }
 
     // Transpolates the mouse position to a cell of the fluid
     fn find_cell(self: Window) ![2]i32 {
@@ -70,51 +121,5 @@ pub const Window = struct {
                 rl.drawRectangle(x, y, self.cell_size, self.cell_size, color);
             }
         }
-    }
-
-    pub fn init(h: i32, w: i32, cell_size: i32) Window {
-        // Grid initialization.
-        // Calculate some padding to not "overflow" the UI when drawing.
-        var x_padding: i32 = @mod(w, cell_size);
-        var y_padding: i32 = @mod(h, cell_size);
-
-        // Calculate the actual amount of rows and columns for the grid, using the padding
-        // and dividing by the size of a single particle.
-        const rows: i32 = @divFloor(h - y_padding, cell_size);
-        const columns: i32 = @divFloor(w - x_padding, cell_size);
-
-        // Apply the padding and change the position of the drawing limits.
-        var fluid_start_x: i32 = 0;
-        var fluid_end_x: i32 = w;
-
-        if (@mod(x_padding, 2) == 0) {
-            fluid_start_x += @divFloor(x_padding, 2);
-            fluid_end_x -= @divFloor(x_padding, 2);
-        } else { // uneven padding
-            x_padding -= 1;
-            fluid_start_x += 1 + @divFloor(x_padding, 2);
-            fluid_end_x -= @divFloor(x_padding, 2);
-        }
-
-        var fluid_start_y: i32 = 0;
-        var fluid_end_y: i32 = h;
-
-        if (@mod(y_padding, 2) == 0) {
-            fluid_start_y += @divFloor(y_padding, 2);
-            fluid_end_y -= @divFloor(y_padding, 2);
-        } else {
-            y_padding -= 1;
-            fluid_start_y += 1 + @divFloor(y_padding, 2);
-            fluid_end_y -= @divFloor(y_padding, 2);
-        }
-
-        return Window{
-            .start_x = fluid_start_x,
-            .end_x = fluid_end_x,
-            .start_y = fluid_start_y,
-            .end_y = fluid_end_y,
-            .fluid = Fluid.init(rows, columns),
-            .cell_size = cell_size,
-        };
     }
 };
