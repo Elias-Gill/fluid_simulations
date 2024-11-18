@@ -1,13 +1,18 @@
 const std = @import("std");
 const Grid = @import("lib.zig").Grid;
 
+const Velocity = struct {
+    x: f32,
+    y: f32,
+};
+
 // Struct that represents the fluid.
 pub const Fluid = struct {
     // the grid that represents the content of the fluid
-    densities: Grid,
-    densities_x0: Grid,
-    velocities_x: Grid,
-    velocities_y: Grid,
+    densities: Grid(f64),
+    densities_x0: Grid(f64),
+    velocities_x: Grid(Velocity),
+    velocities_y: Grid(Velocity),
 
     // Physics constants
     c_diff: f16 = 0.02, // diffusion coeficient
@@ -16,10 +21,11 @@ pub const Fluid = struct {
 
     pub fn init(rows: i32, columns: i32) Fluid {
         return Fluid{
-            .densities = Grid.init(rows, columns),
-            .densities_x0 = Grid.init(rows, columns),
-            .velocities_x = Grid.init(rows, columns),
-            .velocities_y = Grid.init(rows, columns),
+            .densities = Grid(f64).init(rows, columns),
+            .densities_x0 = Grid(f64).init(rows, columns),
+
+            .velocities_x = Grid(Velocity).init(rows, columns),
+            .velocities_y = Grid(Velocity).init(rows, columns),
         };
     }
 
