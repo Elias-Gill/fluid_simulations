@@ -3,10 +3,10 @@ const rl = @import("raylib");
 const Window = @import("window.zig").Window;
 
 pub fn main() !void {
-    const cell_size = 7; // in pixels
+    const cell_size = 20; // in pixels
     const fps = 120;
     const w_width = 600; // in pixels
-    const w_height = 600; // in pixels
+    const w_height = 400; // in pixels
 
     // Initialize the main window
     rl.initWindow(w_width, w_height, "Fluid simulation");
@@ -21,16 +21,12 @@ pub fn main() !void {
         rl.clearBackground(rl.Color.black);
 
         // Velocity step
-        window.apply_user_inputs();
-        
-        // Density step
-        window.fluid.diffuse_densities();
-        // window.fluid.swap_densities();
-        // window.fluid.advection();
+        window.simulate();
 
-        rl.beginDrawing();
-        window.draw();
-        rl.endDrawing();
+        // rl.beginDrawing();
+        // window.draw();
+        window.fluid.velocities_x.print();
+        // rl.endDrawing();
 
         // simple trick to make the simulation slowly fade and reset itself
         window.fluid.densities.grid[

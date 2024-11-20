@@ -85,7 +85,7 @@ pub const Window = struct {
         return .{ row, column };
     }
 
-    pub fn apply_user_inputs(self: Window) void {
+    fn apply_user_inputs(self: Window) void {
         if (!rl.isMouseButtonDown(rl.MouseButton.mouse_button_left)) {
             return;
         }
@@ -99,12 +99,15 @@ pub const Window = struct {
         const column = positions[1];
 
         self.fluid.add_density(row, column);
+        self.fluid.add_velocity(row, column, 14, 14);
     }
 
-    fn calculate_color(density: f64) rl.Color {
+    fn calculate_color(density: f64, velocity: f64) rl.Color {
         // A intensity gradient of white tones
         const intensity: u8 = @intFromFloat(255 * density);
-        return rl.Color.init(255, 255, 255, intensity);
+        const color: u8 = @intFromFloat(@mod(velocity, 255));
+
+        return rl.Color.init(255, color, 255, intensity);
     }
 
     pub fn draw(self: Window) void {
@@ -116,10 +119,16 @@ pub const Window = struct {
                 const x: i32 = @intCast(column * self.cell_size + self.start_x);
 
                 const density = self.fluid.densities.get(row, column);
-                const color = calculate_color(density);
+                const velocity = self.fluid.velocities_x.get(row, column) + self.fluid.velocities_y.get(row, column);
+                const color = calculate_color(density, velocity);
 
                 rl.drawRectangle(x, y, self.cell_size, self.cell_size, color);
             }
         }
+    }
+
+    pub fn simulate(self: *Window) void {
+        self.apply_user_inputs();
+        self.fluid.simulate_frame();
     }
 };

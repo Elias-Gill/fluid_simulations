@@ -48,5 +48,19 @@ pub fn Grid(comptime T: type) type {
             const position: usize = @intCast(self.calculate_position(row, column));
             self.grid[position] = value;
         }
+
+        pub fn print(self: Grid(T)) void {
+            var row: i32 = 0;
+            while (row < self.rows) : (row += 1) {
+                std.debug.print(" | ", .{});
+
+                var column: i32 = 0;
+                while (column < self.columns) : (column += 1) {
+                    std.debug.print("{} | ", .{self.get(row, column)});
+                }
+
+                std.debug.print("\n", .{});
+            }
+        }
     };
 }

@@ -159,3 +159,85 @@ from i=1 to j=ancho {
 // Aplicar condiciones de frontera
 set_bnd(N, b, d);
 ```
+
+### Calculo de proyeccion del vector velocidad
+
+> The velocity over a time step changes due to three causes:
+> - the addition of forces, 
+> - viscous diffusion and 
+> - self-advection. 
+> 
+> Self-advection may seem obscure but we can simply interpret it as the fact that the velocity
+> field is moved along itself.
+
+Para calcular el cambio en el campo de velocidades, Jos Stam propone la siguiente subrutina:
+```
+vel_step { 
+
+    add_forces (); 
+
+    SWAP ( v0, v ); 
+    diffuse ( N, v, v0, visc, dt ); 
+    project ( N, v, v0 ); 
+    SWAP ( v0, v ); 
+
+    advect ( N, u, u0, u0, v0, dt );
+    advect ( N, v, v0, u0, v0, dt );
+    project ( N, u, v, u0, v0 ); 
+}
+```
+
+### Proyecccion
+
+Para realizar las proyecciones de nuestros vectores de velocidad al campo de la densidad
+debemos primero eliminar el gradiente.
+Esto se debe realizar de este modo puesto que la propiedad de los liquidos es la
+incompresibilidad, ademas de que el gradiente implicaria un inyeccion de masa, lo que es
+incompatible con la simulacion.
+
+Esto se realiza resolviendo un sistema de ecuaciones llamado "Ecuaciones de Poisson".
+Una explicacion de como funciona dicho campo queda fuera del alcance del proyecto.
+Para resolver el sistema de ecuaciones podemos reutilizar el metodo Gauss-Seidel previamente
+mencionado.
+
+Para realizar la proyeccion la subrutina es:
+
+```txt
+void project() { 
+    gridSpacing = 1.0 / gridSize; 
+
+    for row=0 to row=gridSize { 
+        for col=0 to col=gridSize { 
+            velocity_x0[row, col] = -0.5 * gridSpacing * 
+                (velocity_x[row + 1, col] - velocity_x[row - 1, col] + 
+                 velocity_y[row, col + 1] - velocity_y[row, col - 1]); 
+
+            velocity_y0[row, col] = 0; 
+        } 
+    } 
+
+    set_bnd(gridSize, 0, divergence); 
+    set_bnd(gridSize, 0, pressure); 
+
+    for iteration=0 to iteration = 20 { 
+        for row=0 to row=gridSize { 
+            for col=0 to col=gridSize { 
+                velocity_y0[row, col] = (velocity_x0[row, col] + 
+                                          velocity_x0[row - 1, col] + velocity_x0[row + 1, col] + 
+                                          velocity_x0[row, col - 1] + velocity_x0[row, col + 1]) / 4; 
+            } 
+        } 
+        set_bnd(gridSize, 0, pressure); 
+    } 
+
+    for row=0 to row=gridSize { 
+        for col=0 to col=gridSize { 
+            velocity_x[row, col] -= 0.5 * (velocity_y0[row + 1, col] - velocity_y0[row - 1, col]) / gridSpacing; 
+            velocity_y[row, col] -= 0.5 * (velocity_y0[row, col + 1] - velocity_y0[row, col - 1]) / gridSpacing; 
+        } 
+    } 
+
+    set_bnd(gridSize, 1, velocityX); 
+    set_bnd(gridSize, 2, velocityY);  
+} 
+```
