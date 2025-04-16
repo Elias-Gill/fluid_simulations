@@ -1,9 +1,8 @@
 const std = @import("std");
 const Color = @import("raylib").Color;
 
-const Allocator = std.mem.Allocator;
 var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-const allocator: Allocator = gpa.allocator();
+const allocator: std.mem.Allocator = gpa.allocator();
 
 // Struct that represents a matrix using vectors. It offers some useful operations
 // to simplify data manipulation.
@@ -15,7 +14,7 @@ pub fn Grid(comptime T: type) type {
         length: usize,
         grid: []T, // single array of bools to be more "performant" (actually just for fun).
 
-        pub fn init(rows: u32, columns: u32) !Grid(T) {
+        pub fn init(rows: usize, columns: usize) !Grid(T) {
             const size = std.math.mul(usize, rows, columns) catch return error.Overflow;
             const array = allocator.alloc(T, size) catch {
                 std.debug.panic("Failed to allocate memory", .{});
@@ -35,7 +34,7 @@ pub fn Grid(comptime T: type) type {
             };
         }
 
-        pub fn deinit(self: Grid(T)) void {
+        pub fn deinit(self: *Grid(T)) void {
             allocator.free(self.grid);
         }
 

@@ -2,9 +2,10 @@ const std = @import("std");
 const testing = std.testing;
 
 const Grid = @import("lib.zig").Grid;
+const Fluid = @import("fluid.zig").Fluid;
 
 test "Test Grid initialization" {
-    const grid = try Grid(f64).init(100, 50);
+    var grid = try Grid(f64).init(100, 50);
     defer grid.deinit();
 
     // Check rows
@@ -20,7 +21,7 @@ test "Test Grid initialization" {
     };
 
     // Verify zero-values initialization
-    for (0..100*50) |index| {
+    for (0..100 * 50) |index| {
         const value = grid.grid[index];
         testing.expectEqual(value, 0) catch |err| {
             std.debug.print("Test failed at index {}: Expected value to be 0, but got {}\n", .{ index, value });
@@ -30,7 +31,7 @@ test "Test Grid initialization" {
 }
 
 test "Test Grid access" {
-    const grid = try Grid(f64).init(10, 20);
+    var grid = try Grid(f64).init(10, 20);
     defer grid.deinit();
 
     grid.set(1, 1, 42);
@@ -43,7 +44,7 @@ test "Test Grid access" {
 }
 
 test "Test Grid bounds checking" {
-    const grid = try Grid(f64).init(10, 20);
+    var grid = try Grid(f64).init(10, 20);
     defer grid.deinit();
     grid.set(0, 0, 2);
     grid.set(9, 19, 3);
@@ -54,4 +55,39 @@ test "Test Grid bounds checking" {
         std.debug.print("Test failed: Expected value to be 2, but got {}\n", .{result});
         return err;
     };
+}
+
+test "Test Fluid initialization and destruction" {
+    // Initialize fluid grid with reasonable size
+    const rows = 64;
+    const columns = 64;
+    var fluid = try Fluid.init(rows, columns);
+
+    defer fluid.deinit();
+
+    // Test basic properties
+    const size: usize = rows * columns;
+    const resolution: f32 = 1/4096;
+
+    try std.testing.expectEqual(size, fluid.cells_number);
+    try std.testing.expectEqual(resolution, fluid.resolution);
+
+    // Test all grids were properly initialized
+    try testGridIsZeroInitialized(&fluid.density, rows, columns);
+    try testGridIsZeroInitialized(&fluid.density_prev, rows, columns);
+    try testGridIsZeroInitialized(&fluid.pressure, rows, columns);
+    try testGridIsZeroInitialized(&fluid.divergence, rows, columns);
+    try testGridIsZeroInitialized(&fluid.velocity_x, rows, columns);
+    try testGridIsZeroInitialized(&fluid.velocity_y, rows, columns);
+    try testGridIsZeroInitialized(&fluid.velocity_x_prev, rows, columns);
+    try testGridIsZeroInitialized(&fluid.velocity_y_prev, rows, columns);
+}
+
+fn testGridIsZeroInitialized(grid: *Grid(f32), rows: i32, columns: i32) !void {
+    for (0..@intCast(rows)) |i| {
+        for (0..@intCast(columns)) |j| {
+            const value = grid.get(@intCast(i), @intCast(j));
+            try std.testing.expectEqual(@as(f32, 0.0), value);
+        }
+    }
 }
