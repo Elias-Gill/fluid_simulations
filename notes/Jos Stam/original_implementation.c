@@ -1,187 +1,317 @@
-/* Original implementation written by Jos Stam 2003 */
+#include <stdlib.h>
 
-#define IX(i, j) ((i) + (N + 2) * (j))
+#define GRID_SIZE 50
+#define TIME_STEP 0.1f
+#define DIFFUSION_RATE 0.0001f
+#define VISCOSITY 0.0f
+#define LINEAR_SOLVE_ITERATIONS 20
 
-// Simulation parameters
-#define N 50                     // Grid size (N x N)
-#define size ((N + 2) * (N + 2)) // Total array size including boundaries
+typedef enum {
+    FIELD_SCALAR = 0,
+    FIELD_VELOCITY = 1,
+} FieldType;
 
-// Fluid fields
-static float u[size], v[size];            // Velocity fields
-static float u_prev[size], v_prev[size];  // Previous velocity fields
-static float dens[size], dens_prev[size]; // Density fields
-static float p[size], div[size];          // Pressure and divergence fields
+typedef struct {
+    int grid_size;
+    int total_cells;
 
-// Physical parameters
-static float visc = 0.0f;    // Viscosity
-static float diff = 0.0001f; // Diffusion rate
-static float dt = 0.1f;      // Time step
+    float *density, *density_prev;
+    float *velocity_x, *velocity_y;
+    float *velocity_x_prev, *velocity_y_prev;
+    float *pressure, *divergence;
+} FluidGrid;
 
-// Helper macro for swapping pointers
-#define SWAP(x0, x)                                                            \
-{                                                                              \
-    float *tmp = x0;                                                           \
-    x0 = x;                                                                    \
-    x = tmp;                                                                   \
+// Calculates the one-dimensional grid index from a 2d-coordinate (i, j).
+int calculate_index(int i, int j, int grid_size) {
+    return i + (grid_size + 2) * j;
 }
 
-void add_source(float *x, float *s, float dt) {
-    int i;
-    for (i = 0; i < size; i++)
-        x[i] += dt * s[i];
+float clamp(float value, float min_val, float max_val) {
+    if (value < min_val) return min_val;
+    if (value > max_val) return max_val;
+    return value;
 }
 
-void set_bnd(int b, float *x) {
-    int i;
-    for (i = 1; i <= N; i++) {
-        x[IX(0, i)] = b == 1 ? -x[IX(1, i)] : x[IX(1, i)];
-        x[IX(N + 1, i)] = b == 1 ? -x[IX(N, i)] : x[IX(N, i)];
-        x[IX(i, 0)] = b == 2 ? -x[IX(i, 1)] : x[IX(i, 1)];
-        x[IX(i, N + 1)] = b == 2 ? -x[IX(i, N)] : x[IX(i, N)];
+inline void swap_pointers(float **a, float **b) {
+    float *tmp = *a;
+    *a = *b;
+    *b = tmp;
+}
+
+FluidGrid create_grid(int size) {
+    FluidGrid grid;
+
+    grid.grid_size = size;
+    grid.total_cells = (size + 2) * (size + 2);
+
+    grid.density = calloc(grid.total_cells, sizeof(float));
+    grid.density_prev = calloc(grid.total_cells, sizeof(float));
+
+    grid.velocity_x = calloc(grid.total_cells, sizeof(float));
+    grid.velocity_y = calloc(grid.total_cells, sizeof(float));
+    grid.velocity_x_prev = calloc(grid.total_cells, sizeof(float));
+    grid.velocity_y_prev = calloc(grid.total_cells, sizeof(float));
+
+    grid.pressure = calloc(grid.total_cells, sizeof(float));
+    grid.divergence = calloc(grid.total_cells, sizeof(float));
+
+    return grid;
+}
+
+void free_grid(FluidGrid *grid) {
+    free(grid->density);
+    free(grid->density_prev);
+    free(grid->velocity_x);
+    free(grid->velocity_y);
+    free(grid->velocity_x_prev);
+    free(grid->velocity_y_prev);
+    free(grid->pressure);
+    free(grid->divergence);
+}
+
+void add_source(float *field, float *source, float dt, int size) {
+    for (int i = 0; i < size; i++) {
+        field[i] += dt * source[i];
     }
-    x[IX(0, 0)] = 0.5f * (x[IX(1, 0)] + x[IX(0, 1)]);
-    x[IX(0, N + 1)] = 0.5f * (x[IX(1, N + 1)] + x[IX(0, N)]);
-    x[IX(N + 1, 0)] = 0.5f * (x[IX(N, 0)] + x[IX(N + 1, 1)]);
-    x[IX(N + 1, N + 1)] = 0.5f * (x[IX(N, N + 1)] + x[IX(N + 1, N)]);
 }
 
-void diffuse(int b, float *x, float *x0, float diff, float dt) {
-    int i, j, k;
-    float a = dt * diff * N * N;
-    for (k = 0; k < 20; k++) {
-        for (i = 1; i <= N; i++) {
-            for (j = 1; j <= N; j++) {
-                x[IX(i, j)] = (x0[IX(i, j)] + a * (x[IX(i - 1, j)] + x[IX(i + 1, j)] +
-                            x[IX(i, j - 1)] + x[IX(i, j + 1)])) /
+/*
+   Boundary conditions affect how the simulation behaves at the edges of the
+   grid.
+
+   For scalar fields (like smoke density):
+   - We want the values to "stick" to the wall or reflect symmetrically.
+   - No flow across the boundary (Neumann condition), so we mirror values at
+   edges.
+
+   For velocity fields (vector fields):
+   - We simulate solid boundaries (like walls).
+   - Velocity component perpendicular to the wall is inverted (bounced),
+   simulating a collision.
+   - Velocity component parallel to the wall is mirrored (unchanged).
+
+   Field type mapping:
+   - FIELD_SCALAR     (0): mirror all edges (used for things like density).
+   - FIELD_VELOCITY_X (1): flip horizontal component at left/right (vertical)
+   walls.
+   - FIELD_VELOCITY_Y (2): flip vertical component at top/bottom (horizontal)
+   walls.
+
+Note: in this simple version I'm not diferentite between vertical and horizontal 
+boundaries behavior.
+*/
+void set_boundary_conditions(FieldType type, float *field, int grid_size) {
+    for (int i = 1; i <= grid_size; i++) {
+        // Para campos de velocidad, invertir la velocidad en los bordes (rebote
+        // en paredes)
+        if (type == FIELD_VELOCITY) {
+            field[calculate_index(0, i, grid_size)] =
+                -field[calculate_index(1, i, grid_size)];
+            field[calculate_index(grid_size + 1, i, grid_size)] =
+                -field[calculate_index(grid_size, i, grid_size)];
+        } else {
+            // Para campos escalares (como densidad), reflejar valores en los bordes
+            field[calculate_index(0, i, grid_size)] =
+                field[calculate_index(1, i, grid_size)];
+            field[calculate_index(grid_size + 1, i, grid_size)] =
+                field[calculate_index(grid_size, i, grid_size)];
+        }
+    }
+
+    // Esquinas
+    field[calculate_index(0, 0, grid_size)] =
+        0.5f * (field[calculate_index(1, 0, grid_size)] +
+                field[calculate_index(0, 1, grid_size)]);
+    field[calculate_index(0, grid_size + 1, grid_size)] =
+        0.5f * (field[calculate_index(1, grid_size + 1, grid_size)] +
+                field[calculate_index(0, grid_size, grid_size)]);
+    field[calculate_index(grid_size + 1, 0, grid_size)] =
+        0.5f * (field[calculate_index(grid_size, 0, grid_size)] +
+                field[calculate_index(grid_size + 1, 1, grid_size)]);
+    field[calculate_index(grid_size + 1, grid_size + 1, grid_size)] =
+        0.5f * (field[calculate_index(grid_size, grid_size + 1, grid_size)] +
+                field[calculate_index(grid_size + 1, grid_size, grid_size)]);
+}
+
+void diffuse(FieldType type, float *field, float *field_prev, float diff,
+        float dt, int grid_size) {
+    float a = dt * diff * grid_size * grid_size;
+
+    for (int k = 0; k < LINEAR_SOLVE_ITERATIONS; k++) {
+        for (int i = 1; i <= grid_size; i++) {
+            for (int j = 1; j <= grid_size; j++) {
+                field[calculate_index(i, j, grid_size)] =
+                    (field_prev[calculate_index(i, j, grid_size)] +
+                     a * (field[calculate_index(i - 1, j, grid_size)] +
+                         field[calculate_index(i + 1, j, grid_size)] +
+                         field[calculate_index(i, j - 1, grid_size)] +
+                         field[calculate_index(i, j + 1, grid_size)])) /
                     (1 + 4 * a);
             }
         }
-        set_bnd(b, x);
+        set_boundary_conditions(type, field, grid_size);
     }
 }
 
-void advect(int b, float *d, float *d0, float *u, float *v, float dt) {
-    int i, j, i0, j0, i1, j1;
-    float x, y, s0, t0, s1, t1, dt0;
-    dt0 = dt * N;
-    for (i = 1; i <= N; i++) {
-        for (j = 1; j <= N; j++) {
-            x = i - dt0 * u[IX(i, j)];
-            y = j - dt0 * v[IX(i, j)];
-            if (x < 0.5f)
-                x = 0.5f;
-            if (x > N + 0.5f)
-                x = N + 0.5f;
-            i0 = (int)x;
-            i1 = i0 + 1;
-            if (y < 0.5f)
-                y = 0.5f;
-            if (y > N + 0.5f)
-                y = N + 0.5f;
-            j0 = (int)y;
-            j1 = j0 + 1;
-            s1 = x - i0;
-            s0 = 1 - s1;
-            t1 = y - j0;
-            t0 = 1 - t1;
-            d[IX(i, j)] = s0 * (t0 * d0[IX(i0, j0)] + t1 * d0[IX(i0, j1)]) +
-                s1 * (t0 * d0[IX(i1, j0)] + t1 * d0[IX(i1, j1)]);
+void advect(FieldType field_type, float *current_field, float *previous_field,
+        float *velocity_x, float *velocity_y, float time_step,
+        int grid_size) {
+    float scaled_time_step = time_step * grid_size;
+
+    for (int cell_i = 1; cell_i <= grid_size; cell_i++) {
+        for (int cell_j = 1; cell_j <= grid_size; cell_j++) {
+            // Calcular nueva posición siguiendo el flujo del fluido
+            float traced_x =
+                cell_i - scaled_time_step *
+                velocity_x[calculate_index(cell_i, cell_j, grid_size)];
+            float traced_y =
+                cell_j - scaled_time_step *
+                velocity_y[calculate_index(cell_i, cell_j, grid_size)];
+
+            // Asegurar que la posición trazada esté dentro de los límites
+            traced_x = clamp(traced_x, 0.5f, grid_size + 0.5f);
+            traced_y = clamp(traced_y, 0.5f, grid_size + 0.5f);
+
+            // Obtener las coordenadas enteras para la interpolación
+            int base_x = (int)traced_x;
+            int next_x = base_x + 1;
+
+            int base_y = (int)traced_y;
+            int next_y = base_y + 1;
+
+            // Calcular pesos de interpolación
+            float x_weight = traced_x - base_x;
+            float inverse_x_weight = 1.0f - x_weight;
+
+            float y_weight = traced_y - base_y;
+            float inverse_y_weight = 1.0f - y_weight;
+
+            // Interpolación bilineal
+            current_field[calculate_index(cell_i, cell_j, grid_size)] =
+                inverse_x_weight *
+                (inverse_y_weight *
+                 previous_field[calculate_index(base_x, base_y, grid_size)] +
+                 y_weight *
+                 previous_field[calculate_index(base_x, next_y, grid_size)]) +
+                x_weight *
+                (inverse_y_weight *
+                 previous_field[calculate_index(next_x, base_y, grid_size)] +
+                 y_weight *
+                 previous_field[calculate_index(next_x, next_y, grid_size)]);
         }
     }
-    set_bnd(b, d);
+
+    set_boundary_conditions(field_type, current_field, grid_size);
 }
 
-void project(float *u, float *v, float *p, float *div) {
-    int i, j, k;
-    float h = 1.0f / N;
+void project(float *vel_x, float *vel_y, float *pressure, float *divergence,
+        int grid_size) {
+    float h = 1.0f / grid_size; // grid cell size (resolution)
 
-    // Calculate divergence
-    for (i = 1; i <= N; i++) {
-        for (j = 1; j <= N; j++) {
-            div[IX(i, j)] = -0.5f * h *
-                (u[IX(i + 1, j)] - u[IX(i - 1, j)] + v[IX(i, j + 1)] -
-                 v[IX(i, j - 1)]);
-            p[IX(i, j)] = 0;
+    for (int i = 1; i <= grid_size; i++) {
+        for (int j = 1; j <= grid_size; j++) {
+            divergence[calculate_index(i, j, grid_size)] =
+                -0.5f * h *
+                (vel_x[calculate_index(i + 1, j, grid_size)] -
+                 vel_x[calculate_index(i - 1, j, grid_size)] +
+                 vel_y[calculate_index(i, j + 1, grid_size)] -
+                 vel_y[calculate_index(i, j - 1, grid_size)]);
+            pressure[calculate_index(i, j, grid_size)] = 0;
         }
     }
-    set_bnd(0, div);
-    set_bnd(0, p);
 
-    // Solve pressure equation
-    for (k = 0; k < 20; k++) {
-        for (i = 1; i <= N; i++) {
-            for (j = 1; j <= N; j++) {
-                p[IX(i, j)] = (div[IX(i, j)] + p[IX(i - 1, j)] + p[IX(i + 1, j)] +
-                        p[IX(i, j - 1)] + p[IX(i, j + 1)]) /
+    set_boundary_conditions(FIELD_SCALAR, divergence, grid_size);
+    set_boundary_conditions(FIELD_SCALAR, pressure, grid_size);
+
+    for (int k = 0; k < LINEAR_SOLVE_ITERATIONS; k++) {
+        for (int i = 1; i <= grid_size; i++) {
+            for (int j = 1; j <= grid_size; j++) {
+                pressure[calculate_index(i, j, grid_size)] =
+                    (divergence[calculate_index(i, j, grid_size)] +
+                     pressure[calculate_index(i - 1, j, grid_size)] +
+                     pressure[calculate_index(i + 1, j, grid_size)] +
+                     pressure[calculate_index(i, j - 1, grid_size)] +
+                     pressure[calculate_index(i, j + 1, grid_size)]) /
                     4;
             }
         }
-        set_bnd(0, p);
+        set_boundary_conditions(FIELD_SCALAR, pressure, grid_size);
     }
 
-    // Subtract pressure gradient
-    for (i = 1; i <= N; i++) {
-        for (j = 1; j <= N; j++) {
-            u[IX(i, j)] -= 0.5f * (p[IX(i + 1, j)] - p[IX(i - 1, j)]) / h;
-            v[IX(i, j)] -= 0.5f * (p[IX(i, j + 1)] - p[IX(i, j - 1)]) / h;
+    for (int i = 1; i <= grid_size; i++) {
+        for (int j = 1; j <= grid_size; j++) {
+            vel_x[calculate_index(i, j, grid_size)] -=
+                0.5f *
+                (pressure[calculate_index(i + 1, j, grid_size)] -
+                 pressure[calculate_index(i - 1, j, grid_size)]) /
+                h;
+            vel_y[calculate_index(i, j, grid_size)] -=
+                0.5f *
+                (pressure[calculate_index(i, j + 1, grid_size)] -
+                 pressure[calculate_index(i, j - 1, grid_size)]) /
+                h;
         }
     }
-    set_bnd(1, u);
-    set_bnd(2, v);
+
+    set_boundary_conditions(FIELD_VELOCITY, vel_x, grid_size);
+    set_boundary_conditions(FIELD_VELOCITY, vel_y, grid_size);
 }
 
-void vel_step(float *u, float *v, float *u0, float *v0, float visc, float dt) {
-    add_source(u, u0, dt);
-    add_source(v, v0, dt);
-    SWAP(u0, u);
-    diffuse(1, u, u0, visc, dt);
-    SWAP(v0, v);
-    diffuse(2, v, v0, visc, dt);
-    project(u, v, u0, v0);
-    SWAP(u0, u);
-    SWAP(v0, v);
-    advect(1, u, u0, u0, v0, dt);
-    advect(2, v, v0, u0, v0, dt);
-    project(u, v, u0, v0);
+void simulate_velocity_step(FluidGrid *grid, float viscosity, float dt) {
+    add_source(grid->velocity_x, grid->velocity_x_prev, dt, grid->total_cells);
+    add_source(grid->velocity_y, grid->velocity_y_prev, dt, grid->total_cells);
+
+    // Diffuse velocity X
+    swap_pointers(&grid->velocity_x_prev, &grid->velocity_x);
+    diffuse(FIELD_VELOCITY, grid->velocity_x, grid->velocity_x_prev, viscosity,
+            dt, grid->grid_size);
+
+    // Diffuse velocity Y
+    swap_pointers(&grid->velocity_y_prev, &grid->velocity_y);
+    diffuse(FIELD_VELOCITY, grid->velocity_y, grid->velocity_y_prev, viscosity,
+            dt, grid->grid_size);
+
+    project(grid->velocity_x, grid->velocity_y, grid->pressure, grid->divergence,
+            grid->grid_size);
+
+    // Advect velocity X
+    swap_pointers(&grid->velocity_x_prev, &grid->velocity_x);
+    advect(FIELD_VELOCITY, grid->velocity_x, grid->velocity_x_prev,
+            grid->velocity_x_prev, grid->velocity_y_prev, dt, grid->grid_size);
+
+    // Advect velocity Y
+    swap_pointers(&grid->velocity_y_prev, &grid->velocity_y);
+    advect(FIELD_VELOCITY, grid->velocity_y, grid->velocity_y_prev,
+            grid->velocity_x_prev, grid->velocity_y_prev, dt, grid->grid_size);
+
+    project(grid->velocity_x, grid->velocity_y, grid->pressure, grid->divergence,
+            grid->grid_size);
 }
 
-void dens_step(float *x, float *x0, float *u, float *v, float diff, float dt) {
-    add_source(x, x0, dt);
-    SWAP(x0, x);
-    diffuse(0, x, x0, diff, dt);
-    SWAP(x0, x);
-    advect(0, x, x0, u, v, dt);
+void simulate_density_step(FluidGrid *grid, float diffusion, float dt) {
+    add_source(grid->density, grid->density_prev, dt, grid->total_cells);
+
+    // Diffuse density
+    swap_pointers(&grid->density_prev, &grid->density);
+    diffuse(FIELD_SCALAR, grid->density, grid->density_prev, diffusion, dt,
+            grid->grid_size);
+
+    // Advect density
+    swap_pointers(&grid->density_prev, &grid->density);
+    advect(FIELD_SCALAR, grid->density, grid->density_prev, grid->velocity_x,
+            grid->velocity_y, dt, grid->grid_size);
 }
 
-// User interaction functions (to be implemented)
-void get_from_UI(float *dens_prev, float *u_prev, float *v_prev) {
-    // Add your user input handling here
-    // For example, add density/velocity sources based on mouse input
-}
-
-void draw_dens(float *dens) {
-    // Add your rendering code here
-    // Visualize the density field
-}
-
-// Main simulation loop
 int main() {
-    // Initialize all arrays to zero
-    for (int i = 0; i < size; i++) {
-        u[i] = v[i] = u_prev[i] = v_prev[i] = 0.0f;
-        dens[i] = dens_prev[i] = 0.0f;
+    FluidGrid fluid = create_grid(GRID_SIZE);
+
+    while (1) {
+        // Agregar entrada del usuario (ejemplo, agregando densidad o velocidades)
+        simulate_velocity_step(&fluid, VISCOSITY, TIME_STEP);
+        simulate_density_step(&fluid, DIFFUSION_RATE, TIME_STEP);
+        // Render de la simulacion
     }
 
-    int simulating = 1; // Control variable for the simulation loop
-
-    while (simulating) {
-        get_from_UI(dens_prev, u_prev, v_prev);
-        vel_step(u, v, u_prev, v_prev, visc, dt);
-        dens_step(dens, dens_prev, u, v, diff, dt);
-        draw_dens(dens);
-
-        // Add some delay or frame rate control if needed
-    }
-
+    free_grid(&fluid);
     return 0;
 }
