@@ -4,7 +4,7 @@ const testing = std.testing;
 const Grid = @import("lib.zig").Grid;
 
 test "Test Grid initialization" {
-    const grid = Grid.init(100, 50);
+    const grid = try Grid(f64).init(100, 50);
     defer grid.deinit();
 
     // Check rows
@@ -20,8 +20,7 @@ test "Test Grid initialization" {
     };
 
     // Verify zero-values initialization
-    var index: usize = 0;
-    while (index < grid.columns * grid.rows) : (index += 1) {
+    for (0..100*50) |index| {
         const value = grid.grid[index];
         testing.expectEqual(value, 0) catch |err| {
             std.debug.print("Test failed at index {}: Expected value to be 0, but got {}\n", .{ index, value });
@@ -31,7 +30,7 @@ test "Test Grid initialization" {
 }
 
 test "Test Grid access" {
-    const grid = Grid.init(10, 20);
+    const grid = try Grid(f64).init(10, 20);
     defer grid.deinit();
 
     grid.set(1, 1, 42);
@@ -44,22 +43,15 @@ test "Test Grid access" {
 }
 
 test "Test Grid bounds checking" {
-    const grid = Grid.init(10, 20);
+    const grid = try Grid(f64).init(10, 20);
     defer grid.deinit();
     grid.set(0, 0, 2);
     grid.set(9, 19, 3);
 
     // Accessing out-of-bounds indices should wrap around in a circular manner
-    var result = grid.get(0, 200);
+    const result = grid.get(0, 200);
     testing.expectEqual(2, result) catch |err| {
         std.debug.print("Test failed: Expected value to be 2, but got {}\n", .{result});
-        return err;
-    };
-
-    // Accesing negative values should do the same
-    result = grid.get(0, -1);
-    testing.expectEqual(3, result) catch |err| {
-        std.debug.print("Test failed: Expected value to be 3, but got {}\n", .{result});
         return err;
     };
 }

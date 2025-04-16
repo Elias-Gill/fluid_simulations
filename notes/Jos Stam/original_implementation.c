@@ -27,8 +27,10 @@ int calculate_index(int i, int j, int grid_size) {
 }
 
 float clamp(float value, float min_val, float max_val) {
-    if (value < min_val) return min_val;
-    if (value > max_val) return max_val;
+    if (value < min_val)
+        return min_val;
+    if (value > max_val)
+        return max_val;
     return value;
 }
 
@@ -97,7 +99,7 @@ void add_source(float *field, float *source, float dt, int size) {
    - FIELD_VELOCITY_Y (2): flip vertical component at top/bottom (horizontal)
    walls.
 
-Note: in this simple version I'm not diferentite between vertical and horizontal 
+Note: in this simple version I'm not diferentite between vertical and horizontal
 boundaries behavior.
 */
 void set_boundary_conditions(FieldType type, float *field, int grid_size) {
@@ -206,6 +208,7 @@ void advect(FieldType field_type, float *current_field, float *previous_field,
 
 void project(float *vel_x, float *vel_y, float *pressure, float *divergence,
         int grid_size) {
+
     float h = 1.0f / grid_size; // grid cell size (resolution)
 
     for (int i = 1; i <= grid_size; i++) {

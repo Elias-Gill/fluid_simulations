@@ -10,19 +10,27 @@ const allocator: Allocator = gpa.allocator();
 pub fn Grid(comptime T: type) type {
     return struct {
         // the actual array of points that composes the grid.
-        columns: i32,
-        rows: i32,
+        columns: usize,
+        rows: usize,
+        length: usize,
         grid: []T, // single array of bools to be more "performant" (actually just for fun).
 
-        pub fn init(rows: i32, columns: i32) Grid(T) {
-            const size: usize = @intCast(rows * columns);
+        pub fn init(rows: u32, columns: u32) !Grid(T) {
+            const size = std.math.mul(usize, rows, columns) catch return error.Overflow;
             const array = allocator.alloc(T, size) catch {
                 std.debug.panic("Failed to allocate memory", .{});
             };
 
+            // Zero-initialize the entire array
+            const zero = std.mem.zeroes(T);
+            for (array) |*item| {
+                item.* = zero;
+            }
+
             return .{
                 .rows = rows,
                 .columns = columns,
+                .length = size,
                 .grid = array,
             };
         }
@@ -31,7 +39,7 @@ pub fn Grid(comptime T: type) type {
             allocator.free(self.grid);
         }
 
-        fn calculate_position(self: Grid(T), row: i32, column: i32) i32 {
+        fn calculate_position(self: Grid(T), row: usize, column: usize) usize {
             var position = @mod(row * self.columns + column, self.rows * self.columns);
             if (position < 0) {
                 position = position + (self.rows * self.columns);
@@ -39,12 +47,12 @@ pub fn Grid(comptime T: type) type {
             return position;
         }
 
-        pub fn get(self: Grid(T), row: i32, column: i32) T {
+        pub fn get(self: Grid(T), row: usize, column: usize) T {
             const position: usize = @intCast(self.calculate_position(row, column));
             return self.grid[position];
         }
 
-        pub fn set(self: Grid(T), row: i32, column: i32, value: T) void {
+        pub fn set(self: Grid(T), row: usize, column: usize, value: T) void {
             const position: usize = @intCast(self.calculate_position(row, column));
             self.grid[position] = value;
         }
