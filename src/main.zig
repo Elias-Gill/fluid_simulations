@@ -13,7 +13,7 @@ pub fn main() anyerror!void {
     defer rl.closeWindow();
 
     // Window renderer instantiation
-    var win = Window.init(screenWidth, screenHeight, 4);
+    var win = Window.init(screenWidth, screenHeight, 7);
     std.debug.print("Grid: {}x{}\n", .{ win.rows, win.columns });
 
     // Fluid instantiation
@@ -32,7 +32,7 @@ pub fn main() anyerror!void {
         defer last_time = @floatCast(rl.getTime());
 
         applyUserInput(win, &fl);
-        fluids.density_step(&fl, lapsed_time);
+        fluids.simulateFrame(&fl, lapsed_time);
 
         win.draw_frame(&fl);
     }
@@ -44,6 +44,6 @@ fn applyUserInput(win: Window, fl: *fluids.Fluid) void {
             return;
         };
         fl.add_density(position[0], position[1]);
-        fl.velocity_x.set(position[0], position[1], 20);
+        fl.add_velocity(position[0], position[1], 20, 20);
     }
 }

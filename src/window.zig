@@ -73,12 +73,28 @@ pub const Window = struct {
         return .{ row, column };
     }
 
-    fn calculate_color(density: f32, velocity: f32) rl.Color {
-        // A intensity gradient of white tones
-        const intensity = @as(u8, @intFromFloat(@min(255.0, 255.0 * density)));
-        const color = @as(u8, @intFromFloat(@mod(velocity, 255.0)));
+    fn calculate_color(density: f32, velocity_x: f32, velocity_y: f32) rl.Color {
+        // Normalizar densidad (ajusta el 15.0 según tu rango máximo)
+        const norm_density = @min(1.0, density / 2.0);
 
-        return rl.Color.init(255, color, 255, intensity);
+        // Calcular magnitud de velocidad (ajusta el 8.0 para cambiar la sensibilidad)
+        const velocity_mag = @sqrt(velocity_x * velocity_x + velocity_y * velocity_y);
+        const speed_factor = @min(1.0, velocity_mag / 8.0);
+
+        // Componentes de color MEJORADOS:
+        const red = @as(u8, @intFromFloat(255.0 * speed_factor)); // Velocidad -> Rojo
+        const blue = @as(u8, @intFromFloat(255.0 * norm_density)); // Densidad -> Azul
+        const green = @as(u8, @intFromFloat(100.0 * speed_factor)); // Toque de verde para contraste
+
+        // Mezcla FINAL más intensa:
+        // zig fmt: off
+        return rl.Color.init(
+            @as(u8, @intFromFloat(@min(255.0, 0.8 * @as(f32, @floatFromInt(red)) + 0.5 * norm_density * 255.0))),  // Rojo dominante
+            @as(u8, @intFromFloat(@min(255.0, 0.3 * @as(f32, @floatFromInt(green)) + 0.2 * norm_density * 255.0))), // Verde suave
+            @as(u8, @intFromFloat(@min(255.0, 0.7 * @as(f32, @floatFromInt(blue)) + 0.3 * speed_factor * 255.0))),   // Azul intenso
+            255
+        );
+        // zig fmt: on
     }
 
     pub fn draw_frame(self: Window, fluid: *Fluid) void {
@@ -90,9 +106,9 @@ pub const Window = struct {
                 const x = @as(i32, @intCast(column)) * self.cell_size + self.start_x;
 
                 const density = fluid.density.get(row, column);
-                const velocity = fluid.velocity_x.get(row, column) +
-                    fluid.velocity_y.get(row, column);
-                const color = calculate_color(density, velocity);
+                const velocity_x = fluid.velocity_x.get(row, column);
+                const velocity_y = fluid.velocity_y.get(row, column);
+                const color = calculate_color(density, velocity_x, velocity_y);
 
                 rl.drawRectangle(@intCast(x), @intCast(y), self.cell_size, self.cell_size, color);
             }

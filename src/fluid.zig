@@ -1,9 +1,9 @@
 const std = @import("std");
 const Grid = @import("lib.zig").Grid;
 
-const LINEAR_SOLVE_ITERATIONS = 20;
-const DIFFUSION_RATE: f32 = 2;
-const VISCOSITY: f32 = 0.3;
+const LINEAR_SOLVE_ITERATIONS = 10;
+const DIFFUSION_RATE: f32 = 0.001;  // Para densidad
+const VISCOSITY: f32 = 0.001;       // Para velocidad
 
 pub const Fluid = struct {
     cells_number: usize,
@@ -84,20 +84,30 @@ pub const Fluid = struct {
     }
 
     pub fn add_density(self: *Fluid, row: usize, column: usize) void {
+        // First clear previous values if needed
+        self.density_prev.set(row, column, 0);
+
+        // Then add new density
         const added_density: f32 = 10;
-        const new_value: f32 = self.density_prev.get(row, column) + added_density;
-        self.density.set(row, column, new_value);
+        self.density.set(row, column, added_density);
+        self.density.set(row, column, added_density);
     }
 
-    pub fn swap_fields(self: *Fluid) void {
+    pub fn add_velocity(self: *Fluid, row: usize, column: usize, x_velocity: f32, y_velocity: f32) void {
+        self.velocity_x.set(row, column, x_velocity);
+        self.velocity_y.set(row, column, y_velocity);
+    }
+
+    pub fn swap_density_fields(self: *Fluid) void {
         std.mem.swap(*Grid(f32), &self.density, &self.density_prev);
-        std.mem.swap(*Grid(f32), &self.velocity_x, &self.velocity_x_prev);
-        std.mem.swap(*Grid(f32), &self.velocity_y, &self.velocity_y_prev);
     }
 
-    // pub fn add_velocity(self: Fluid, row: i32, column: i32) void {
-    //     // TODO: add velocity based on mouse movement
-    // }
+    pub fn swap_velocity_x(self: *Fluid) void {
+        std.mem.swap(Grid(f32), &self.velocity_x, &self.velocity_x_prev);
+    }
+    pub fn swap_velocity_y(self: *Fluid) void {
+        std.mem.swap(Grid(f32), &self.velocity_y, &self.velocity_y_prev);
+    }
 };
 
 // ------------------------------
@@ -115,8 +125,8 @@ fn diffuse(fluid: *Fluid, field: *Grid(f32), field_prev: *Grid(f32), dt: f32, di
 
     // Gauss-Seidel aproximation solver
     for (0..LINEAR_SOLVE_ITERATIONS) |_| {
-        for (1..fluid.rows) |i| {
-            for (1..fluid.columns) |j| {
+        for (1..fluid.rows + 1) |i| {
+            for (1..fluid.columns + 1) |j| {
                 const center = field_prev.get(i, j);
                 const left = field.get(i - 1, j);
                 const right = field.get(i + 1, j);
@@ -134,8 +144,8 @@ fn advect(fluid: *Fluid, current_field: *Grid(f32), previous_field: *Grid(f32), 
     const float_cells = @as(f32, @floatFromInt(fluid.cells_number));
     const scaled_time_step = dt * float_cells;
 
-    for (1..fluid.rows) |i| {
-        for (1..fluid.columns) |j| {
+    for (1..fluid.rows + 1) |i| {
+        for (1..fluid.columns + 1) |j| {
             // Calculate new position following fluid flow
             const traced_x = @as(f32, @floatFromInt(i)) - scaled_time_step * velocity_x.get(i, j);
             const traced_y = @as(f32, @floatFromInt(j)) - scaled_time_step * velocity_y.get(i, j);
@@ -172,7 +182,82 @@ fn advect(fluid: *Fluid, current_field: *Grid(f32), previous_field: *Grid(f32), 
     // setBoundaryConditions(fluid, field_type, current_field);
 }
 
-pub fn density_step(fluid: *Fluid, dt: f32) void {
+fn project(fluid: *Fluid, vel_x: *Grid(f32), vel_y: *Grid(f32), pressure: *Grid(f32), divergence: *Grid(f32)) void {
+    const h = 1.0 / @as(f32, @floatFromInt(fluid.cells_number));
+
+    // Calculate divergence
+    for (1..fluid.rows) |i| {
+        for (1..fluid.columns) |j| {
+            const div = -0.5 * h * (vel_x.get(i + 1, j) - vel_x.get(i - 1, j) +
+                vel_y.get(i, j + 1) - vel_y.get(i, j - 1));
+            divergence.set(i, j, div);
+            pressure.set(i, j, 0);
+        }
+    }
+
+    // setBoundaryConditions(fluid, FieldType.scalar, divergence);
+    // setBoundaryConditions(fluid, FieldType.scalar, pressure);
+
+    // Solve pressure using Gauss-Seidel
+    for (0..LINEAR_SOLVE_ITERATIONS) |_| {
+        for (1..fluid.rows) |i| {
+            for (1..fluid.columns) |j| {
+                const p = (divergence.get(i, j) +
+                    pressure.get(i - 1, j) +
+                    pressure.get(i + 1, j) +
+                    pressure.get(i, j - 1) +
+                    pressure.get(i, j + 1)) / 4.0;
+                pressure.set(i, j, p);
+            }
+        }
+        // setBoundaryConditions(fluid, FieldType.scalar, pressure);
+    }
+
+    // Update velocity field
+    for (1..fluid.rows) |i| {
+        for (1..fluid.columns) |j| {
+            const vel_x_update = 0.5 * (pressure.get(i + 1, j) - pressure.get(i - 1, j)) / h;
+            const vel_y_update = 0.5 * (pressure.get(i, j + 1) - pressure.get(i, j - 1)) / h;
+
+            vel_x.set(i, j, vel_x.get(i, j) - vel_x_update);
+            vel_y.set(i, j, vel_y.get(i, j) - vel_y_update);
+        }
+    }
+
+    // setBoundaryConditions(fluid, FieldType.velocity, vel_x);
+    // setBoundaryConditions(fluid, FieldType.velocity, vel_y);
+}
+
+fn velocity_step(fluid: *Fluid, dt: f32) void {
+    // Diffuse velocity X
+    fluid.swap_velocity_x();
+    diffuse(fluid, &fluid.velocity_x, &fluid.velocity_x_prev, dt, VISCOSITY);
+
+    // Diffuse velocity Y
+    fluid.swap_velocity_y();
+    diffuse(fluid, &fluid.velocity_y, &fluid.velocity_y_prev, dt, VISCOSITY);
+
+    project(fluid, &fluid.velocity_x, &fluid.velocity_y, &fluid.pressure, &fluid.divergence);
+
+    // Advect velocity X
+    fluid.swap_velocity_x();
+    advect(fluid, &fluid.velocity_x, &fluid.velocity_x_prev, &fluid.velocity_x_prev, &fluid.velocity_y_prev, dt);
+
+    // Advect velocity Y
+    fluid.swap_velocity_y();
+    advect(fluid, &fluid.velocity_y, &fluid.velocity_y_prev, &fluid.velocity_x_prev, &fluid.velocity_y_prev, dt);
+
+    project(fluid, &fluid.velocity_x, &fluid.velocity_y, &fluid.pressure, &fluid.divergence);
+}
+
+fn density_step(fluid: *Fluid, dt: f32) void {
     diffuse(fluid, &fluid.density_prev, &fluid.density, dt, DIFFUSION_RATE);
     advect(fluid, &fluid.density, &fluid.density_prev, &fluid.velocity_x, &fluid.velocity_y, dt);
+}
+
+pub fn simulateFrame(fluid: *Fluid, dt: f32) void {
+    // add_velocity_source();
+    velocity_step(fluid, dt);
+    // add_density_source();
+    density_step(fluid, dt);
 }

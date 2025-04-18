@@ -2,8 +2,8 @@
 
 #define GRID_SIZE 50
 #define TIME_STEP 0.1f
-#define DIFFUSION_RATE 0.0001f
-#define VISCOSITY 0.0f
+#define DIFFUSION_RATE 0.001f
+#define VISCOSITY 0.2f
 #define LINEAR_SOLVE_ITERATIONS 20
 
 typedef enum {
