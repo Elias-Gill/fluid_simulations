@@ -87,8 +87,7 @@ pub const Window = struct {
         return rl.Color.init(255, color, 255, intensity);
     }
 
-    pub fn draw_frame(self: Window, fluid: Fluid) void {
-        std.debug.print("\nRendering Frame", .{});
+    pub fn draw_frame(self: Window, fluid: *Fluid) void {
         var row: usize = 0;
         while (row < fluid.density.rows) : (row += 1) {
             var column: usize = 0;

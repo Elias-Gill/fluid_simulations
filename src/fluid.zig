@@ -5,6 +5,9 @@ const LINEAR_SOLVE_ITERATIONS = 2;
 
 pub const Fluid = struct {
     cells_number: usize,
+    rows: usize,
+    columns: usize,
+
     resolution: f32,
 
     density: Grid(f32),
@@ -17,8 +20,10 @@ pub const Fluid = struct {
     velocity_x_prev: Grid(f32),
     velocity_y_prev: Grid(f32),
 
-    pub fn init(rows: usize, columns: usize) !Fluid {
-        const size = rows * columns;
+    pub fn init(width: usize, height: usize) !Fluid {
+        const rows = width + 2;
+        const columns = height + 2;
+        const size = width * height;
 
         const size_float: f32 = @floatFromInt(size);
         const resolution: f32 = @divExact(1.0, size_float);
@@ -49,6 +54,8 @@ pub const Fluid = struct {
         errdefer velocity_y_prev.deinit();
 
         return Fluid{
+            .rows = width,
+            .columns = height,
             .resolution = resolution,
             .cells_number = size,
             .density = density,
@@ -79,6 +86,12 @@ pub const Fluid = struct {
         self.density.set(row, column, new_value);
     }
 
+    pub fn swap_fields(self: *Fluid) void {
+        std.mem.swap(*Grid(f32), &self.density, &self.density_prev);
+        std.mem.swap(*Grid(f32), &self.velocity_x, &self.velocity_x_prev);
+        std.mem.swap(*Grid(f32), &self.velocity_y, &self.velocity_y_prev);
+    }
+
     // pub fn add_velocity(self: Fluid, row: i32, column: i32) void {
     //     // TODO: add velocity based on mouse movement
     // }
@@ -98,8 +111,8 @@ fn diffuse(fluid: *Fluid, field: *Grid(f32), field_prev: *Grid(f32), dt: f32, di
     const a = dt * diff * float_cells;
 
     for (0..LINEAR_SOLVE_ITERATIONS) |_| {
-        for (1..fluid.cells_number) |i| {
-            for (1..fluid.cells_number) |j| {
+        for (1..fluid.rows) |i| {
+            for (1..fluid.columns) |j| {
                 // Asegurar que no accedemos fuera de los límites
                 const center = field_prev.get(i, j);
                 const left = field.get(i - 1, j);
@@ -115,7 +128,5 @@ fn diffuse(fluid: *Fluid, field: *Grid(f32), field_prev: *Grid(f32), dt: f32, di
 }
 
 pub fn density_step(fluid: *Fluid) void {
-    std.debug.print("Difussing... ", .{});
     diffuse(fluid, &fluid.density, &fluid.density_prev, 1, 2); // Valores más razonables
-    std.debug.print("Density step terminated\n", .{});
 }

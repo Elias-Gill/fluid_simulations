@@ -8,11 +8,10 @@ const allocator: std.mem.Allocator = gpa.allocator();
 // to simplify data manipulation.
 pub fn Grid(comptime T: type) type {
     return struct {
-        // the actual array of points that composes the grid.
         columns: usize,
         rows: usize,
         length: usize,
-        grid: []T, // single array of bools to be more "performant" (actually just for fun).
+        grid: []T, // Removed length since it's redundant (rows*columns)
 
         pub fn init(rows: usize, columns: usize) !Grid(T) {
             const size = std.math.mul(usize, rows, columns) catch return error.Overflow;
@@ -38,22 +37,21 @@ pub fn Grid(comptime T: type) type {
             allocator.free(self.grid);
         }
 
-        fn calculate_position(self: Grid(T), row: usize, column: usize) usize {
-            var position = @mod(row * self.columns + column, self.rows * self.columns);
-            if (position < 0) {
-                position = position + (self.rows * self.columns);
+        pub fn get(self: *Grid(T), row: usize, column: usize) T {
+            // Direct access without modulo - bounds checking only in debug
+            var index = row * self.columns + column;
+            while (index >= self.length) {
+                index -= self.length;
             }
-            return position;
+            return self.grid[index];
         }
 
-        pub fn get(self: Grid(T), row: usize, column: usize) T {
-            const position: usize = @intCast(self.calculate_position(row, column));
-            return self.grid[position];
-        }
-
-        pub fn set(self: Grid(T), row: usize, column: usize, value: T) void {
-            const position: usize = @intCast(self.calculate_position(row, column));
-            self.grid[position] = value;
+        pub fn set(self: *Grid(T), row: usize, column: usize, value: T) void {
+            var index = row * self.columns + column;
+            while (index >= self.length) {
+                index -= self.length;
+            }
+            self.grid[index] = value;
         }
 
         pub fn print(self: Grid(T)) void {
@@ -68,6 +66,14 @@ pub fn Grid(comptime T: type) type {
 
                 std.debug.print("\n", .{});
             }
+        }
+
+        fn calculate_position(self: Grid(T), row: usize, column: usize) usize {
+            var position = @mod(row * self.columns + column, self.rows * self.columns);
+            if (position < 0) {
+                position = position + (self.rows * self.columns);
+            }
+            return position;
         }
     };
 }

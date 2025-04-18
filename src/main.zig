@@ -25,9 +25,9 @@ pub fn main() anyerror!void {
     while (!rl.windowShouldClose()) {
         rl.beginDrawing();
 
-        fl.add_density(400, 400);
+        fl.add_density(10, 10);
         fluids.density_step(&fl);
-        win.draw_frame(fl);
+        win.draw_frame(&fl);
 
         rl.endDrawing();
     }
