@@ -1,7 +1,9 @@
 const std = @import("std");
 const Grid = @import("lib.zig").Grid;
 
-const LINEAR_SOLVE_ITERATIONS = 2;
+const LINEAR_SOLVE_ITERATIONS = 20;
+const DIFFUSION_RATE: f32 = 2;
+const VISCOSITY: f32 = 0.3;
 
 pub const Fluid = struct {
     cells_number: usize,
@@ -82,7 +84,7 @@ pub const Fluid = struct {
     }
 
     pub fn add_density(self: *Fluid, row: usize, column: usize) void {
-        const added_density: f32 = 20;
+        const added_density: f32 = 10;
         const new_value: f32 = self.density_prev.get(row, column) + added_density;
         self.density.set(row, column, new_value);
     }
@@ -102,19 +104,19 @@ pub const Fluid = struct {
 // | Fluid simulation functions |
 // ------------------------------
 
-// NOTE: not used yet, at least in this context where the "box" is open, like space invaders
+// NOTE: We must add a "fieldtype" parameter if the set set_boundaries is used
+// not used yet, at least in this context where the "box" is open, like space invaders.
 // const FieldType = enum {};
 // set_boundary_conditions(type, field, grid_size);
 
-// NOTE: we must add a "fieldtype" parameter if the set set_boundaries is used
 fn diffuse(fluid: *Fluid, field: *Grid(f32), field_prev: *Grid(f32), dt: f32, diff: f32) void {
     const float_cells = @as(f32, @floatFromInt(fluid.cells_number));
     const a = dt * diff * float_cells;
 
+    // Gauss-Seidel aproximation solver
     for (0..LINEAR_SOLVE_ITERATIONS) |_| {
         for (1..fluid.rows) |i| {
             for (1..fluid.columns) |j| {
-                // Asegurar que no accedemos fuera de los límites
                 const center = field_prev.get(i, j);
                 const left = field.get(i - 1, j);
                 const right = field.get(i + 1, j);
@@ -128,6 +130,49 @@ fn diffuse(fluid: *Fluid, field: *Grid(f32), field_prev: *Grid(f32), dt: f32, di
     }
 }
 
-pub fn density_step(fluid: *Fluid) void {
-    diffuse(fluid, &fluid.density, &fluid.density_prev, 1, 2); // Valores más razonables
+fn advect(fluid: *Fluid, current_field: *Grid(f32), previous_field: *Grid(f32), velocity_x: *Grid(f32), velocity_y: *Grid(f32), dt: f32) void {
+    const float_cells = @as(f32, @floatFromInt(fluid.cells_number));
+    const scaled_time_step = dt * float_cells;
+
+    for (1..fluid.rows) |i| {
+        for (1..fluid.columns) |j| {
+            // Calculate new position following fluid flow
+            const traced_x = @as(f32, @floatFromInt(i)) - scaled_time_step * velocity_x.get(i, j);
+            const traced_y = @as(f32, @floatFromInt(j)) - scaled_time_step * velocity_y.get(i, j);
+
+            // Clamp traced position to grid bounds
+            const clamped_x = @max(0.5, @min(traced_x, @as(f32, @floatFromInt(fluid.cells_number)) + 0.5));
+            const clamped_y = @max(0.5, @min(traced_y, @as(f32, @floatFromInt(fluid.cells_number)) + 0.5));
+
+            // Get integer coordinates for interpolation
+            const base_x = @as(usize, @intFromFloat(clamped_x));
+            const next_x = base_x + 1;
+
+            const base_y = @as(usize, @intFromFloat(clamped_y));
+            const next_y = base_y + 1;
+
+            // Calculate interpolation weights
+            const x_weight = clamped_x - @as(f32, @floatFromInt(base_x));
+            const inverse_x_weight = 1.0 - x_weight;
+
+            const y_weight = clamped_y - @as(f32, @floatFromInt(base_y));
+            const inverse_y_weight = 1.0 - y_weight;
+
+            // Bilinear interpolation
+            const value =
+                inverse_x_weight * (inverse_y_weight * previous_field.get(base_x, base_y) +
+                    y_weight * previous_field.get(base_x, next_y)) +
+                x_weight * (inverse_y_weight * previous_field.get(next_x, base_y) +
+                    y_weight * previous_field.get(next_x, next_y));
+
+            current_field.set(i, j, value);
+        }
+    }
+
+    // setBoundaryConditions(fluid, field_type, current_field);
+}
+
+pub fn density_step(fluid: *Fluid, dt: f32) void {
+    diffuse(fluid, &fluid.density_prev, &fluid.density, dt, DIFFUSION_RATE);
+    advect(fluid, &fluid.density, &fluid.density_prev, &fluid.velocity_x, &fluid.velocity_y, dt);
 }

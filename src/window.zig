@@ -56,13 +56,13 @@ pub const Window = struct {
     }
 
     // Transpolates the mouse position to a cell of the fluid
-    fn find_cell(self: Window) ![2]usize {
+    pub fn find_cell(self: Window) ![2]usize {
         const mouse_x = rl.getMouseX();
         const mouse_y = rl.getMouseY();
 
-        // check out of bounds position
+        // bounds check: end_x/y is exclusive, not inclusive
         if (mouse_x < self.start_x or mouse_y < self.start_y or
-            mouse_x > self.end_x or mouse_y > self.end_y)
+            mouse_x >= self.end_x or mouse_y >= self.end_y)
         {
             return MouseToGridError.InvalidPosition;
         }
@@ -98,22 +98,4 @@ pub const Window = struct {
             }
         }
     }
-
-    // NOTE: example implementation on how to get user input
-    // fn apply_user_inputs(self: Window) void {
-    //     if (!rl.isMouseButtonDown(rl.MouseButton.mouse_button_left)) {
-    //         return;
-    //     }
-    //
-    //     const positions = self.find_cell() catch {
-    //         std.debug.print("\nMouse out of bounds", .{});
-    //         return;
-    //     };
-    //
-    //     const row = positions[0];
-    //     const column = positions[1];
-    //
-    //     self.fluid.add_density(row, column);
-    //     self.fluid.add_velocity(row, column, 14, 14);
-    // }
 };
