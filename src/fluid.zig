@@ -20,10 +20,8 @@ pub const Fluid = struct {
     velocity_x_prev: Grid(f32),
     velocity_y_prev: Grid(f32),
 
-    pub fn init(width: usize, height: usize) !Fluid {
-        const rows = width + 2;
-        const columns = height + 2;
-        const size = width * height;
+    pub fn init(rows: usize, columns: usize) !Fluid {
+        const size = rows * columns;
 
         const size_float: f32 = @floatFromInt(size);
         const resolution: f32 = @divExact(1.0, size_float);
@@ -54,14 +52,17 @@ pub const Fluid = struct {
         errdefer velocity_y_prev.deinit();
 
         return Fluid{
-            .rows = width,
-            .columns = height,
+            .rows = rows,
+            .columns = columns,
             .resolution = resolution,
             .cells_number = size,
-            .density = density,
-            .density_prev = density_prev,
+
             .pressure = pressure,
             .divergence = divergence,
+
+            .density = density,
+            .density_prev = density_prev,
+
             .velocity_x = velocity_x,
             .velocity_y = velocity_y,
             .velocity_x_prev = velocity_x_prev,

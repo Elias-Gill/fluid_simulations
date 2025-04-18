@@ -17,7 +17,7 @@ pub const Window = struct {
     start_y: i32,
     end_y: i32,
 
-    pub fn init(h: i32, w: i32, cell_size: i32) Window {
+    pub fn init(w: i32, h: i32, cell_size: i32) Window {
         // Grid initialization.
         // Calculate some padding to not "overflow" the UI when drawing.
         const x_padding: i32 = @mod(w, cell_size);
@@ -28,27 +28,21 @@ pub const Window = struct {
         const columns: usize = @intCast(@divFloor(w - x_padding, cell_size));
 
         // Apply the padding and change the position of the drawing limits.
-        var fluid_start_x: i32 = 0;
-        var fluid_end_x: i32 = w;
-
         const x_pad_half = if (@mod(x_padding, 2) == 0)
             @divFloor(x_padding, 2)
         else
             @divFloor(x_padding - 1, 2) + 1;
 
-        fluid_start_x += x_pad_half;
-        fluid_end_x -= @divFloor(x_padding, 2);
-
-        var fluid_start_y: i32 = 0;
-        var fluid_end_y: i32 = h;
+        const fluid_start_x = x_pad_half;
+        const fluid_end_x = w - @divFloor(x_padding, 2);
 
         const y_pad_half = if (@mod(y_padding, 2) == 0)
             @divFloor(y_padding, 2)
         else
             @divFloor(y_padding - 1, 2) + 1;
 
-        fluid_start_y += y_pad_half;
-        fluid_end_y -= @divFloor(y_padding, 2);
+        const fluid_start_y = y_pad_half;
+        const fluid_end_y = h - @divFloor(y_padding, 2);
 
         return Window{
             .start_x = fluid_start_x,
@@ -96,17 +90,11 @@ pub const Window = struct {
                 const x = @as(i32, @intCast(column)) * self.cell_size + self.start_x;
 
                 const density = fluid.density.get(row, column);
-                const velocity = fluid.velocity_x.get(row, column) + 
-                               fluid.velocity_y.get(row, column);
+                const velocity = fluid.velocity_x.get(row, column) +
+                    fluid.velocity_y.get(row, column);
                 const color = calculate_color(density, velocity);
 
-                rl.drawRectangle(
-                    @intCast(x),
-                    @intCast(y),
-                    self.cell_size,
-                    self.cell_size,
-                    color
-                );
+                rl.drawRectangle(@intCast(x), @intCast(y), self.cell_size, self.cell_size, color);
             }
         }
     }

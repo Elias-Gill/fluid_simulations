@@ -13,7 +13,7 @@ pub fn main() anyerror!void {
     defer rl.closeWindow();
 
     // Window renderer instantiation
-    var win = Window.init(screenHeight, screenHeight, 12);
+    var win = Window.init(screenWidth, screenHeight, 12);
     std.debug.print("Grid: {}x{}\n", .{win.rows, win.columns});
 
     // Fluid instantiation
@@ -25,7 +25,7 @@ pub fn main() anyerror!void {
     while (!rl.windowShouldClose()) {
         rl.beginDrawing();
 
-        fl.add_density(10, 10);
+        fl.add_density(40, 40);
         fluids.density_step(&fl);
         win.draw_frame(&fl);
 
