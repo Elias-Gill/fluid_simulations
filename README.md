@@ -2,77 +2,96 @@
 
 ## Overview
 
-This project is a comprehensive exploration of fluid simulations, low-level programming, and
-software engineering principles.
+This project is primarily an educational exploration of **low-level programming**, **software design**, and **algorithm implementation** through the lens of fluid simulation. Rather than aiming for production-grade physics accuracy, it focuses on:
 
-It serves as both a learning exercise and a showcase for efficient, scalable, and extensible
-code design.
+1. **Core Programming Concepts**: Memory management, performance optimization, and data-oriented design
+2. **Software Architecture**: Building modular, extensible systems
+3. **Algorithm Implementation**: Practical application of numerical methods and computational physics
 
-## Goals and Objectives
+## Learning Objectives
 
-1. **Fluid Simulation Mastery**: 
-- Implement various fluid simulation algorithms
-- Explore different approaches to fluid dynamics modeling
-- Achieve realistic visualizations of fluid behavior
+### 1. Low-Level Programming Mastery
+- **Memory Management**: Explicit allocation/deallocation patterns in Zig
+- **Performance Optimization**: Cache-aware data structures and hot-loop optimization
+- **Hardware Interaction**: Understanding how algorithms map to hardware behavior
 
-2. **Low-Level Programming Expertise**:
-- Leverage Zig's capabilities for fine-grained control over system resources
-- Optimize performance through careful memory management and algorithm selection
+### 2. Software Design Principles
+- **Modular Architecture**: Clean separation between:
+  - Simulation core
+  - Rendering system
+  - Input handling
+- **Extensibility Patterns**: Implementing new simulation methods via:
+  - Component-based design
+  - Interface abstractions
+- **API Design**: Creating reusable, well-documented interfaces
 
-3. **Software Engineering Excellence**:
-- Design modular, extensible architecture for easy addition of new simulation techniques
-- Implement robust testing frameworks to ensure reliability across different scenarios
-- Develop intuitive APIs for seamless integration with other components
+### 3. Algorithm Implementation
+- **Numerical Methods**:
+  - Finite difference schemes
+  - Linear algebra operations
+  - Iterative solvers
+- **Computational Patterns**:
+  - Structured grid operations
+  - Particle systems
+  - Hybrid approaches
 
-4. **Mathematical Understanding**:
-- Apply advanced mathematical concepts to fluid dynamics problems
-- Implement numerical methods for solving partial differential equations
+## Technical Implementation
 
-5. **Performance Optimization**:
-- Utilize Zig's compile-time evaluation capabilities for performance-critical sections
-- Implement parallel processing techniques where applicable
-
-## Technical Details
-
-- **Rendering Engine**:
-  Raylib for cross-platform rendering and input handling
-- **Programming Language**:
-  Zig for its balance of low-level control and high-level abstractions
-- **Simulation Algorithms**: 
-    - Smoothed Particle Hydrodynamics (SPH)
-    - Lattice Boltzmann Methods (LBM)
-    - Eulerian Grid-based methods
-
-## Project Structure
-
-```text
-fluid-simulation/
-├── src/
-│   ├── main.zig
-│   ├── simulation/
-│   │   ├── sps.zig
-│   │   ├── lbm.zig
-│   │   └── eulerian.zig
-│   ├── renderer/
-│   │   └── raylib_wrapper.zig
-│   └── utils/
-│       ├── math.zig
-│       └── performance.zig
-├── tests/
-└── docs/
+### Core Architecture
+```mermaid
+graph TD
+    A[Main Loop] --> B[Simulation Core]
+    A --> C[Rendering System]
+    A --> D[Input Handler]
+    B --> E[Physics Modules]
+    B --> F[Data Structures]
+    C --> G[Visualization]
+    C --> H[Debug Tools]
 ```
+
+### Key Components
+1. **Simulation Core**:
+   - Swappable algorithm implementations
+   - Unified memory management
+   - Time-stepping controller
+
+2. **Rendering Interface**:
+   - Abstracted visualization layer
+   - Multiple display modes (scalar/vector fields)
+   - Performance metrics overlay
+
+3. **Extension Points**:
+   - New physics models via interface implementation
+   - Custom visualizers via plugin system
+   - Alternative numerical solvers
+
+## Educational Value
+
+This project serves as:
+- A **reference implementation** for computational physics concepts
+- A **case study** in balancing performance and abstraction
+- A **demonstration** of Zig's unique capabilities for systems programming
 
 ## Contributing
 
-Contributions are welcome!
-Please see our [CONTRIBUTING.md](CONTRIBUTING.md) file for details.
+We welcome contributions that:
+- Improve code clarity and educational value
+- Add well-documented implementation variants
+- Enhance architectural patterns
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## License
 
-[MIT License](LICENSE)
+[MIT License](LICENSE)
 
 ## Acknowledgments
 
-- Special thanks to the Raylib community for their excellent documentation and support.
-- Appreciation to the Zig language developers for creating such an exciting platform for
-  systems programming.
+Special thanks to:
+- The Zig community
+- Educators and researchers who have developed accessible explanations of fluid dynamics
+- Open source projects that demonstrate effective software architecture patterns
+
+
+https://github.com/user-attachments/assets/ec84c425-4f5e-4005-91e1-f7f8794f6a3f
+
