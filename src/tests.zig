@@ -1,6 +1,8 @@
 const std = @import("std");
 const testing = std.testing;
 
+const lib = @import("lib.zig");
+
 const Grid = @import("lib.zig").Grid;
 const Fluid = @import("fluid.zig").Fluid;
 
@@ -67,7 +69,7 @@ test "Test Fluid initialization and destruction" {
 
     // Test basic properties
     const size: usize = rows * columns;
-    const resolution: f32 = 1/4096;
+    const resolution: f32 = 1 / 4096;
 
     try std.testing.expectEqual(size, fluid.cells_number);
     try std.testing.expectEqual(resolution, fluid.resolution);

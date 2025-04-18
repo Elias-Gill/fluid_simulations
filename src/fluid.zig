@@ -1,7 +1,8 @@
 const std = @import("std");
 const Grid = @import("lib.zig").Grid;
 
-// Struct that represents the fluid.
+const LINEAR_SOLVE_ITERATIONS = 2;
+
 pub const Fluid = struct {
     cells_number: usize,
     resolution: f32,
@@ -72,10 +73,49 @@ pub const Fluid = struct {
         self.velocity_y_prev.deinit();
     }
 
-    pub fn add_density(self: Fluid, row: i32, column: i32) void {
-        const new_value: f64 = self.densities_x0.get(row, column) + self.added_density;
-        self.densities.set(row, column, new_value);
+    pub fn add_density(self: *Fluid, row: usize, column: usize) void {
+        const added_density: f32 = 20;
+        const new_value: f32 = self.density_prev.get(row, column) + added_density;
+        self.density.set(row, column, new_value);
     }
+
+    // pub fn add_velocity(self: Fluid, row: i32, column: i32) void {
+    //     // TODO: add velocity based on mouse movement
+    // }
 };
 
-// Fluid simulation functions
+// ------------------------------
+// | Fluid simulation functions |
+// ------------------------------
+
+// NOTE: not used yet, at least in this context where the "box" is open, like space invaders
+// const FieldType = enum {};
+// set_boundary_conditions(type, field, grid_size);
+
+// NOTE: we must add a "fieldtype" parameter if the set set_boundaries is used
+fn diffuse(fluid: *Fluid, field: *Grid(f32), field_prev: *Grid(f32), dt: f32, diff: f32) void {
+    const float_cells = @as(f32, @floatFromInt(fluid.cells_number));
+    const a = dt * diff * float_cells;
+
+    for (0..LINEAR_SOLVE_ITERATIONS) |_| {
+        for (1..fluid.cells_number) |i| {
+            for (1..fluid.cells_number) |j| {
+                // Asegurar que no accedemos fuera de los límites
+                const center = field_prev.get(i, j);
+                const left = field.get(i - 1, j);
+                const right = field.get(i + 1, j);
+                const top = field.get(i, j - 1);
+                const bottom = field.get(i, j + 1);
+
+                const new_value = (center + a * (left + right + top + bottom)) / (1.0 + 4.0 * a);
+                field.set(i, j, new_value);
+            }
+        }
+    }
+}
+
+pub fn density_step(fluid: *Fluid) void {
+    std.debug.print("Difussing... ", .{});
+    diffuse(fluid, &fluid.density, &fluid.density_prev, 1, 2); // Valores más razonables
+    std.debug.print("Density step terminated\n", .{});
+}
